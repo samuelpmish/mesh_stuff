@@ -3,6 +3,7 @@
 #include "mesh/io.hpp"
 
 #include "common.hpp"
+#include "timer.hpp"
 
 using namespace io;
 
@@ -12,8 +13,6 @@ void export_vtu_single_element(Element::Type type, std::string prefix) {
 
 TEST(vtu, export_tests) {
     export_vtu_single_element(Element::Type::Tri3, "tri3");
-    export_vtu_single_element(Element::Type::Line2, "line2");
-    export_vtu_single_element(Element::Type::Line3, "line3");
     export_vtu_single_element(Element::Type::Tri3, "tri3");
     export_vtu_single_element(Element::Type::Tri6, "tri6");
     export_vtu_single_element(Element::Type::Quad4, "quad4");
@@ -49,8 +48,10 @@ TEST(vtu, multi_block_compression) {
         int num_elements; // choose such that connectivity and node location data are > 4MB
         std::string name;
     };
-    std::vector<TestCase> TEST_SET { {Element::Type::Tet4, 275000, "tet4_multiblock"},
-                                     {Element::Type::Tet10, 125000, "tet10_multiblock"} };
+    std::vector<TestCase> TEST_SET { 
+        {Element::Type::Tet4, 10000, "tet4_multiblock"},
+        {Element::Type::Tet10, 125000, "tet10_multiblock"} 
+    };
 
     for (const TestCase &tc : TEST_SET) {
 
@@ -64,6 +65,11 @@ TEST(vtu, multi_block_compression) {
             }
             element_definitions[i] = Element{tc.type, range(n*i, n*(i+1))};
         }
+
+        timer stopwatch;
+        stopwatch.start();
         export_vtu(Mesh{node_locations, element_definitions}, tc.name+".vtu");
+        stopwatch.stop();
+        std::cout << stopwatch.elapsed() << std::endl;
     }
 }

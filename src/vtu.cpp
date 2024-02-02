@@ -4,6 +4,7 @@
 #include "base64.hpp"
 #include "node_ordering.hpp"
 
+#include <thread>
 #include <cstring>
 #include <iostream>
 
@@ -64,14 +65,13 @@ std::vector< new_type > convert(const std::vector< old_type > & old_data) {
 //     [#p-size] = Size of last partial block (zero if it not needed)
 //     [#c-size-i] = Size in bytes of block i after compression
 // Once the data is compressed and the header is generated, the data can be written as
-//     output << Base64::encode(header) << Base64::encode(compress(data_1)) << Base64::encode(compress(data_2)) ...
+//     output << Base64::encode(header) << Base64::encode(join(compress(data_1), compress(data_2), ...))
 template < typename header_int_t >
 void write_compressed_data(const std::vector<uint8_t> &data_bytes,
                            std::ofstream &outfile,
-                           std::size_t block_size_in_MB = 4)
+                           std::size_t bytes_per_block)
 {
   header_int_t total_bytes = data_bytes.size();
-  header_int_t bytes_per_block = block_size_in_MB * 1048576u;
   header_int_t remainder = total_bytes % bytes_per_block;
   header_int_t quotient = total_bytes / bytes_per_block;
   header_int_t size_of_last_block, number_of_blocks;
@@ -89,21 +89,38 @@ void write_compressed_data(const std::vector<uint8_t> &data_bytes,
   header[1] = bytes_per_block;
   header[2] = size_of_last_block;
 
-  std::vector<std::vector<uint8_t>> compressed_bytes(number_of_blocks);
+  std::vector< std::vector<uint8_t> > compressed_bytes(number_of_blocks);
 
-  for (header_int_t i = 0; i < number_of_blocks; ++i) {
-    header_int_t block_size = (i == number_of_blocks - 1) ? size_of_last_block : bytes_per_block;
-    std::vector<uint8_t>::const_iterator start = data_bytes.begin() + i * bytes_per_block;
-    std::vector<uint8_t>::const_iterator stop  = start + block_size;
-    std::vector<uint8_t> block_vector(start, stop);
-    compressed_bytes[i] = compress(block_vector);
-    header[3+i] = compressed_bytes[i].size();
+  std::vector< std::thread > threads;
+  int num_threads = std::thread::hardware_concurrency();
+  for (int tid = 0; tid < num_threads; tid++) {
+    threads.push_back(std::thread([&, tid](){
+      for (header_int_t i = tid; i < number_of_blocks; i += num_threads) {
+        header_int_t block_size = (i == number_of_blocks - 1) ? size_of_last_block : bytes_per_block;
+        std::vector<uint8_t>::const_iterator start = data_bytes.begin() + i * bytes_per_block;
+        std::vector<uint8_t>::const_iterator stop  = start + block_size;
+        std::vector<uint8_t> block_vector(start, stop);
+        compressed_bytes[i] = compress(block_vector);
+        header[3+i] = compressed_bytes[i].size();
+      }
+    }));
+  };
+
+  for (auto & thread : threads) { thread.join(); }
+
+  std::size_t total_compressed_bytes = 0;
+  for (const auto & buffer : compressed_bytes) {
+    total_compressed_bytes += buffer.size();
+  }
+
+  std::vector< uint8_t > compressed_bytes_joined;
+  compressed_bytes_joined.reserve(total_compressed_bytes);
+  for (const auto & buffer : compressed_bytes) {
+    compressed_bytes_joined.insert(compressed_bytes_joined.end(), buffer.begin(), buffer.end());
   }
 
   outfile << Base64::Encode(header_bytes);
-  for (const auto &compressed : compressed_bytes) {
-    outfile << Base64::Encode(compressed);
-  }
+  outfile << Base64::Encode(compressed_bytes_joined);
   outfile << '\n';
 }
 
@@ -113,7 +130,7 @@ std::string type_name(float) { return "Float32"; }
 std::string type_name(double) { return "Float64"; }
 
 template < typename float_t, typename int_t, typename header_int_t = uint32_t >
-bool export_vtu_impl(const Mesh & mesh, std::string filename, std::size_t block_size_in_MB = 4) {
+bool export_vtu_impl(const Mesh & mesh, std::string filename, std::size_t block_size = (1 << 16)) {
 
   int_t num_nodes = int_t(mesh.nodes.size());
   int_t num_elements = int_t(mesh.elements.size());
@@ -134,7 +151,7 @@ bool export_vtu_impl(const Mesh & mesh, std::string filename, std::size_t block_
     std::vector<uint8_t> byte_vector(data_bytes);
     uint8_t * ptr = &byte_vector[0];
     append_to_byte_array(ptr, convert< float_t >(mesh.nodes));
-    write_compressed_data<header_int_t>(byte_vector, outfile, block_size_in_MB);
+    write_compressed_data<header_int_t>(byte_vector, outfile, block_size);
   }
   outfile << "</DataArray>\n";
   outfile << "</Points>\n";
@@ -154,7 +171,7 @@ bool export_vtu_impl(const Mesh & mesh, std::string filename, std::size_t block_
         append_to_byte_array(ptr, id);
       }
     }
-    write_compressed_data<header_int_t>(byte_vector, outfile, block_size_in_MB);
+    write_compressed_data<header_int_t>(byte_vector, outfile, block_size);
   }
   outfile << "</DataArray>\n";
 
@@ -168,7 +185,7 @@ bool export_vtu_impl(const Mesh & mesh, std::string filename, std::size_t block_
       offset += nodes_per_elem(elem.type);
       append_to_byte_array(ptr, offset);
     }
-    write_compressed_data<header_int_t>(byte_vector, outfile, block_size_in_MB);
+    write_compressed_data<header_int_t>(byte_vector, outfile, block_size);
   }
   outfile << "</DataArray>\n";
 
@@ -181,7 +198,7 @@ bool export_vtu_impl(const Mesh & mesh, std::string filename, std::size_t block_
       uint8_t vtk_id = vtk::element_type(elem.type);
       append_to_byte_array(ptr, vtk_id);
     }
-    write_compressed_data<header_int_t>(byte_vector, outfile, block_size_in_MB);
+    write_compressed_data<header_int_t>(byte_vector, outfile, block_size);
   }
   outfile << "</DataArray>\n";
   outfile << "</Cells>\n";
@@ -196,7 +213,7 @@ bool export_vtu_impl(const Mesh & mesh, std::string filename, std::size_t block_
 }
 
 bool export_vtu(const Mesh & mesh, std::string filename) {
-  return export_vtu_impl<float, int32_t, uint32_t>(mesh, filename, 4);
+  return export_vtu_impl<float, int32_t, uint32_t>(mesh, filename);
 }
 
 }
