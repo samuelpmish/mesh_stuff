@@ -180,6 +180,12 @@ io::Mesh import_gmsh_v22_ascii(std::ifstream & infile) {
 
     e.type = gmsh::element_type(elem_type);
 
+    if (e.type == io::Element::Type::Unsupported) {
+      std::cout << "error: encountered unsupported element type" << std::endl;
+      io::print_supported_elements();
+      exit(1);
+    }
+
     e.tags.resize(num_tags);
     for (int j = 0; j < num_tags; j++) infile >> e.tags[j];
 

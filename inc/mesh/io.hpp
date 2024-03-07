@@ -153,6 +153,9 @@ struct Element {
   std::vector< int > tags;
 };
 
+void print_supported_elements();
+int degree(io::Element::Type type);
+int dimension(io::Element::Type type);
 int nodes_per_elem(io::Element::Type type);
 
 struct Mesh {
