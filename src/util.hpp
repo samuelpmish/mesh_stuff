@@ -39,7 +39,7 @@ std::ostream & operator<<(std::ostream & out, const std::array<T,n> & arr) {
 }
 
 template < typename T, size_t n >
-std::array<T,n> binary_read_array(std::ifstream & infile) {
+std::array<T,n> binary_read_array(std::istream & infile) {
   std::array<T,n> out; 
   infile.read((char*)&out, sizeof(T) * n);
   return out;
@@ -64,7 +64,7 @@ std::tuple<T...> ascii_read_tuple(std::ifstream & infile) {
 }
 
 template < typename T, size_t n >
-std::array<T,n> ascii_read_array(std::ifstream & infile) {
+std::array<T,n> ascii_read_array(std::istream & infile) {
   std::array<T,n> out; 
   for (int i = 0; i < n; i++) infile >> out[i];
   return out;
