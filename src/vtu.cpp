@@ -175,6 +175,8 @@ bool export_vtu_impl(const Mesh & mesh, std::string filename, std::size_t block_
   }
   outfile << "</DataArray>\n";
 
+
+
   outfile << "<DataArray type=\"" << type_name(int_t{}) << "\" Name=\"offsets\" format=\"binary\">\n";
   {
     uint32_t data_bytes = num_elements * sizeof(int_t);
@@ -202,6 +204,26 @@ bool export_vtu_impl(const Mesh & mesh, std::string filename, std::size_t block_
   }
   outfile << "</DataArray>\n";
   outfile << "</Cells>\n";
+
+  // if every element of the mesh has integer tags
+  if (mesh.elements[0].tags.size() > 0) {
+    outfile << "<CellData Scalars=\"material\">\n";
+    outfile << "<DataArray type=\"" << type_name(int32_t{}) << "\" Name=\"material\" format=\"binary\">\n";
+    {
+      int num_tags = mesh.elements[0].tags.size();
+      uint32_t data_bytes = num_tags * mesh.elements.size() * sizeof(int32_t);
+      std::vector<uint8_t> byte_vector(data_bytes);
+      uint8_t * ptr = &byte_vector[0];
+      for (auto & elem : mesh.elements) {
+        for (int32_t tag : elem.tags) {
+          append_to_byte_array(ptr, tag);
+        }
+      }
+      write_compressed_data<header_int_t>(byte_vector, outfile, block_size);
+    }
+    outfile << "</DataArray>\n";
+    outfile << "</CellData>\n";
+  }
 
   outfile << "</Piece>\n";
   outfile << "</UnstructuredGrid>\n";
