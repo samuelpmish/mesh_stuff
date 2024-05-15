@@ -3,7 +3,7 @@
 #include <array>
 #include <vector>
 #include <string>
-#include <cinttypes>
+#include <cstdint>
 
 namespace io {
 

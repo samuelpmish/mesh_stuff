@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <string>
+#include <cinttypes>
 
 namespace Base64 {
   std::string Encode(const uint32_t & data);
