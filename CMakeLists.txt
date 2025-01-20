@@ -12,9 +12,11 @@ target_include_directories(mesh_stuff PUBLIC ${PROJECT_SOURCE_DIR}/inc)
 find_package(ZLIB 1.2.3) # defines imported target ZLIB::ZLIB
 if (NOT ZLIB_FOUND) 
   include(FetchContent)
+  set(zlib_patch_command git apply ${CMAKE_CURRENT_SOURCE_DIR}/cmake/zlib.patch)
   FetchContent_Declare(
     zlib
     URL https://github.com/madler/zlib/releases/download/v1.3/zlib-1.3.tar.gz
+    PATCH_COMMAND ${zlib_patch_command} 
   )
   FetchContent_MakeAvailable(zlib)
   add_library(ZLIB::ZLIB ALIAS zlibstatic)
