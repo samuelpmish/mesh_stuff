@@ -15,8 +15,12 @@ if (NOT ZLIB_FOUND)
   set(zlib_patch_command git apply ${CMAKE_CURRENT_SOURCE_DIR}/cmake/zlib.patch)
   FetchContent_Declare(
     zlib
-    URL https://github.com/madler/zlib/releases/download/v1.3/zlib-1.3.tar.gz
-    PATCH_COMMAND ${zlib_patch_command} 
+    #URL https://github.com/madler/zlib/releases/download/v1.3/zlib-1.3.tar.gz
+    GIT_REPOSITORY https://github.com/madler/zlib.git
+    GIT_TAG v1.3
+    GIT_PROGRESS TRUE
+    PATCH_COMMAND ${zlib_patch_command}
+    UPDATE_DISCONNECTED 1
   )
   FetchContent_MakeAvailable(zlib)
   add_library(ZLIB::ZLIB ALIAS zlibstatic)
